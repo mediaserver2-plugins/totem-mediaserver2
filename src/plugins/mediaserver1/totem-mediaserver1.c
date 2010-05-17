@@ -59,8 +59,8 @@ typedef struct {
 } TotemMediaServer1PluginClass;
 
 enum {
-  BROWSER_MODEL_NAME = 0,
-  BROWSER_MODEL_ICON,
+  MODEL_PROVIDER = 0,
+  MODEL_NAME,
 };
 
 G_MODULE_EXPORT GType register_totem_plugin (GTypeModule *module);
@@ -82,19 +82,73 @@ totem_media_server1_plugin_init (TotemMediaServer1Plugin *plugin)
 {
 }
 
-static void
-provider_added_cb (MS1Observer *observer,
-                   const gchar *provider,
-                   gpointer user_data)
+static gboolean
+remove_provider_from_model (GtkTreeModel *model,
+                            GtkTreePath *path,
+                            GtkTreeIter *iter,
+                            gpointer user_data)
 {
-  GtkTreeIter iter;
+  MS1Client *provider;
+
+  gtk_tree_model_get (model, iter, MODEL_PROVIDER, &provider, -1);
+  if (provider == user_data) {
+    gtk_tree_store_remove (GTK_TREE_STORE (model), iter);
+    return TRUE;
+  }
+
+  return FALSE;
+}
+
+static void
+provider_removed_cb (MS1Client *provider,
+                     gpointer user_data)
+{
   TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
 
-  gtk_tree_store_append (GTK_TREE_STORE (self->browser_model), &iter, NULL);
-  gtk_tree_store_set (GTK_TREE_STORE (self->browser_model),
-                      &iter,
-                      0, provider,
-                      -1);
+  gtk_tree_model_foreach (self->browser_model, remove_provider_from_model, provider);
+}
+
+static void
+provider_added_cb (MS1Observer *observer,
+                   const gchar *name,
+                   gpointer user_data)
+{
+  GHashTable *result;
+  GtkTreeIter iter;
+  MS1Client *provider;
+  TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
+  const gchar *title;
+  gchar *properties[] = { MS1_PROP_DISPLAY_NAME,
+                          NULL };
+
+  provider = ms1_client_new (name);
+  result = ms1_client_get_properties (provider,
+                                      ms1_client_get_root_path (provider),
+                                      properties,
+                                      NULL);
+
+  if (result) {
+    title = ms1_client_get_display_name (result);
+    if (!title || title[0] == '\0') {
+      title = name;
+    }
+
+    gtk_tree_store_append (GTK_TREE_STORE (self->browser_model), &iter, NULL);
+    gtk_tree_store_set (GTK_TREE_STORE (self->browser_model),
+                        &iter,
+                        MODEL_PROVIDER, provider,
+                        MODEL_NAME, title,
+                        -1);
+
+    g_signal_connect (provider,
+                      "destroy",
+                      (GCallback) provider_removed_cb,
+                      self);
+
+    g_hash_table_unref (result);
+  }
+
+  g_object_unref (provider);
 }
 
 static void
@@ -139,13 +193,14 @@ setup_ui (TotemMediaServer1Plugin *self)
   gtk_tree_view_column_add_attribute (col,
                                       renderer,
                                       "text",
-                                      0);
+                                      MODEL_NAME);
   gtk_tree_view_insert_column (GTK_TREE_VIEW (browser), col, -1);
   gtk_container_add (GTK_CONTAINER (scroll), browser);
   gtk_container_add (GTK_CONTAINER (box), scroll);
 
-  self->browser_model = GTK_TREE_MODEL (gtk_tree_store_new (1,
-                                                            G_TYPE_STRING));     /* Name */
+  self->browser_model = GTK_TREE_MODEL (gtk_tree_store_new (2,
+                                                            G_TYPE_OBJECT,   /* Provider */
+                                                            G_TYPE_STRING)); /* Name */
   gtk_tree_view_set_model (GTK_TREE_VIEW (browser), self->browser_model);
   gtk_widget_show_all (box);
   totem_add_sidebar_page (self->totem, "mediaserver1", "MediaServer1", box);
