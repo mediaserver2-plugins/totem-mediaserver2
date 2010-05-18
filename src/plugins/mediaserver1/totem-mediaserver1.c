@@ -78,6 +78,7 @@ enum {
   MODEL_PATH,
   MODEL_TYPE,
   MODEL_URL,
+  MODEL_ICON,
 };
 
 static gchar *properties[] = { MS1_PROP_DISPLAY_NAME,
@@ -103,6 +104,48 @@ totem_media_server1_plugin_class_init (TotemMediaServer1PluginClass *klass)
 static void
 totem_media_server1_plugin_init (TotemMediaServer1Plugin *plugin)
 {
+}
+
+static GdkPixbuf *
+load_icon (MS1ItemType type)
+{
+  GdkScreen *screen;
+  GtkIconTheme *theme;
+  GdkPixbuf *pixbuf;
+  GError *error = NULL;
+  const gchar *icon;
+
+  switch (type) {
+  case MS1_ITEM_TYPE_CONTAINER:
+    icon = GTK_STOCK_DIRECTORY;
+    break;
+  case MS1_ITEM_TYPE_VIDEO:
+  case MS1_ITEM_TYPE_MOVIE:
+    icon = "gnome-mime-video";
+    break;
+  case MS1_ITEM_TYPE_AUDIO:
+  case MS1_ITEM_TYPE_MUSIC:
+    icon = "gnome-mime-audio";
+    break;
+  case MS1_ITEM_TYPE_IMAGE:
+  case MS1_ITEM_TYPE_PHOTO:
+    icon = "gnome-mime-image";
+    break;
+  default:
+    icon = GTK_STOCK_FILE;
+    break;
+  }
+
+  screen = gdk_screen_get_default ();
+  theme = gtk_icon_theme_get_for_screen (screen);
+  pixbuf = gtk_icon_theme_load_icon (theme, icon, 22, 22, &error);
+
+  if (pixbuf == NULL) {
+    g_warning ("Failed to load icon %s: %s", icon,  error->message);
+    g_error_free (error);
+  }
+
+  return pixbuf;
 }
 
 static gboolean
@@ -136,9 +179,11 @@ provider_added_cb (MS1Observer *observer,
                    const gchar *name,
                    gpointer user_data)
 {
+  GdkPixbuf *icon;
   GHashTable *result;
   GtkTreeIter iter;
   MS1Client *provider;
+  MS1ItemType type;
   TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
   const gchar *title;
 
@@ -154,13 +199,17 @@ provider_added_cb (MS1Observer *observer,
       title = name;
     }
 
+    type =  ms1_client_get_item_type (result);
+    icon = load_icon (type);
+
     gtk_tree_store_append (GTK_TREE_STORE (self->browser_model), &iter, NULL);
     gtk_tree_store_set (GTK_TREE_STORE (self->browser_model),
                         &iter,
                         MODEL_PROVIDER, provider,
                         MODEL_TITLE, title,
                         MODEL_PATH, ms1_client_get_path (result),
-                        MODEL_TYPE, ms1_client_get_item_type (result),
+                        MODEL_TYPE, type,
+                        MODEL_ICON, icon,
                         -1);
 
     g_signal_connect (provider,
@@ -168,6 +217,7 @@ provider_added_cb (MS1Observer *observer,
                       (GCallback) provider_removed_cb,
                       self);
 
+    g_object_unref (icon);
     g_hash_table_unref (result);
   }
 
@@ -206,10 +256,12 @@ static gboolean
 browse_children (gpointer user_data)
 {
   BrowseData *data = (BrowseData *) user_data;
+  GdkPixbuf *icon;
   GList *child;
   GList *children;
   GtkTreeIter iter;
   GtkTreePath *path;
+  MS1ItemType type;
   gchar **urls;
   gchar *url;
   gint remaining = PAGESIZE;
@@ -230,6 +282,9 @@ browse_children (gpointer user_data)
         url = NULL;
       }
 
+      type = ms1_client_get_item_type (child->data);
+      icon = load_icon (type);
+
       gtk_tree_store_append (GTK_TREE_STORE (data->plugin->browser_model),
                              &iter,
                              data->parent_iter);
@@ -240,9 +295,11 @@ browse_children (gpointer user_data)
                           MODEL_PROVIDER, data->provider,
                           MODEL_TITLE, ms1_client_get_display_name (child->data),
                           MODEL_PATH, ms1_client_get_path (child->data),
-                          MODEL_TYPE, ms1_client_get_item_type (child->data),
+                          MODEL_TYPE, type,
                           MODEL_URL, url,
+                          MODEL_ICON, icon,
                           -1);
+      g_object_unref (icon);
       remaining--;
     }
 
@@ -330,7 +387,8 @@ setup_ui (TotemMediaServer1Plugin *self)
 {
   GtkWidget *box;
   GtkWidget *scroll;
-  GtkCellRenderer *renderer;
+  GtkCellRenderer *render_text;
+  GtkCellRenderer *render_pixbuf;
   GtkTreeViewColumn *col;
 
   box = gtk_vbox_new (FALSE, 5);
@@ -341,23 +399,24 @@ setup_ui (TotemMediaServer1Plugin *self)
   self->browser = gtk_tree_view_new ();
   gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (self->browser), FALSE);
   col = gtk_tree_view_column_new ();
-  renderer = gtk_cell_renderer_text_new ();
-  gtk_tree_view_column_pack_start (col, renderer, FALSE);
-  gtk_tree_view_column_add_attribute (col,
-                                      renderer,
-                                      "text",
-                                      MODEL_TITLE);
+  render_pixbuf = gtk_cell_renderer_pixbuf_new ();
+  gtk_tree_view_column_pack_start (col, render_pixbuf, FALSE);
+  gtk_tree_view_column_add_attribute (col, render_pixbuf, "pixbuf", MODEL_ICON);
+  render_text = gtk_cell_renderer_text_new ();
+  gtk_tree_view_column_pack_start (col, render_text, FALSE);
+  gtk_tree_view_column_add_attribute (col, render_text, "text", MODEL_TITLE);
   gtk_tree_view_insert_column (GTK_TREE_VIEW (self->browser), col, -1);
   gtk_container_add (GTK_CONTAINER (scroll), self->browser);
   gtk_container_add (GTK_CONTAINER (box), scroll);
 
   self->browser_model =
-    GTK_TREE_MODEL (gtk_tree_store_new (5,
-                                        G_TYPE_OBJECT,   /* Provider */
-                                        G_TYPE_STRING,   /* Name */
-                                        G_TYPE_STRING,   /* Path */
-                                        G_TYPE_INT,      /* Type */
-                                        G_TYPE_STRING)); /* URL */
+    GTK_TREE_MODEL (gtk_tree_store_new (6,
+                                        G_TYPE_OBJECT,     /* Provider */
+                                        G_TYPE_STRING,     /* Name */
+                                        G_TYPE_STRING,     /* Path */
+                                        G_TYPE_INT,        /* Type */
+                                        G_TYPE_STRING,     /* URL */
+                                        GDK_TYPE_PIXBUF)); /* Icon */
   gtk_tree_view_set_model (GTK_TREE_VIEW (self->browser), self->browser_model);
 
   g_signal_connect (self->browser,
