@@ -192,9 +192,11 @@ browse_cb (GtkTreeView *tree_view,
   GtkTreeIter iter_child;
   GtkTreeModel *model;
   MS1Client *provider;
+  MS1ItemType type;
   TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
-  gchar *object_path;
   gchar **urls;
+  gchar *object_path;
+  gchar *title;
   gchar *url;
 
   model = gtk_tree_view_get_model (tree_view);
@@ -202,36 +204,43 @@ browse_cb (GtkTreeView *tree_view,
   gtk_tree_model_get (model, &iter,
                       MODEL_PROVIDER, &provider,
                       MODEL_PATH, &object_path,
+                      MODEL_TYPE, &type,
+                      MODEL_URL, &url,
+                      MODEL_TITLE, &title,
                       -1);
 
-  children =
-    ms1_client_list_children (provider, object_path, 0, 10, properties, NULL);
+  if (type == MS1_ITEM_TYPE_CONTAINER) {
+    children =
+      ms1_client_list_children (provider, object_path, 0, 10, properties, NULL);
 
-  for (child = children; child; child = g_list_next (child)) {
-    urls = ms1_client_get_urls (child->data);
-    if (urls && urls[0]) {
-      url = urls[0];
-    } else {
-      url = NULL;
+    for (child = children; child; child = g_list_next (child)) {
+      urls = ms1_client_get_urls (child->data);
+      if (urls && urls[0]) {
+        url = urls[0];
+      } else {
+        url = NULL;
+      }
+      gtk_tree_store_append (GTK_TREE_STORE (self->browser_model),
+                             &iter_child,
+                             &iter);
+      gtk_tree_store_set (GTK_TREE_STORE (self->browser_model),
+                          &iter_child,
+                          MODEL_PROVIDER, provider,
+                          MODEL_TITLE, ms1_client_get_display_name (child->data),
+                          MODEL_PATH, ms1_client_get_path (child->data),
+                          MODEL_TYPE, ms1_client_get_item_type (child->data),
+                          MODEL_URL, url,
+                          -1);
     }
-    gtk_tree_store_append (GTK_TREE_STORE (self->browser_model),
-                           &iter_child,
-                           &iter);
-    gtk_tree_store_set (GTK_TREE_STORE (self->browser_model),
-                        &iter_child,
-                        MODEL_PROVIDER, provider,
-                        MODEL_TITLE, ms1_client_get_display_name (child->data),
-                        MODEL_PATH, ms1_client_get_path (child->data),
-                        MODEL_TYPE, ms1_client_get_item_type (child->data),
-                        MODEL_URL, url,
-                        -1);
+
+    /* Free data */
+    g_list_foreach (children, (GFunc) g_hash_table_unref, NULL);
+    g_list_free (children);
+
+    gtk_tree_view_expand_row (GTK_TREE_VIEW (self->browser), path, FALSE);
+  } else {
+    totem_add_to_playlist_and_play (self->totem, url, title, TRUE);
   }
-
-  /* Free data */
-  g_list_foreach (children, (GFunc) g_hash_table_unref, NULL);
-  g_list_free (children);
-
-  gtk_tree_view_expand_row (GTK_TREE_VIEW (self->browser), path, FALSE);
 }
 
 static void
