@@ -63,7 +63,15 @@ enum {
   MODEL_PROVIDER = 0,
   MODEL_TITLE,
   MODEL_PATH,
+  MODEL_TYPE,
+  MODEL_URL,
 };
+
+static gchar *properties[] = { MS1_PROP_DISPLAY_NAME,
+                               MS1_PROP_PATH,
+                               MS1_PROP_TYPE,
+                               MS1_PROP_URLS,
+                               NULL };
 
 G_MODULE_EXPORT GType register_totem_plugin (GTypeModule *module);
 GType totem_media_server1_plugin_get_type (void);
@@ -119,15 +127,11 @@ provider_added_cb (MS1Observer *observer,
   GtkTreeIter iter;
   MS1Client *provider;
   TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
-  const gchar *root_path;
   const gchar *title;
-  gchar *properties[] = { MS1_PROP_DISPLAY_NAME,
-                          NULL };
 
   provider = ms1_client_new (name);
-  root_path = ms1_client_get_root_path (provider);
   result = ms1_client_get_properties (provider,
-                                      root_path,
+                                      ms1_client_get_root_path (provider),
                                       properties,
                                       NULL);
 
@@ -142,7 +146,8 @@ provider_added_cb (MS1Observer *observer,
                         &iter,
                         MODEL_PROVIDER, provider,
                         MODEL_TITLE, title,
-                        MODEL_PATH, root_path,
+                        MODEL_PATH, ms1_client_get_path (result),
+                        MODEL_TYPE, ms1_client_get_item_type (result),
                         -1);
 
     g_signal_connect (provider,
@@ -181,9 +186,6 @@ browse_cb (GtkTreeView *tree_view,
            GtkTreeViewColumn *column,
            gpointer user_data)
 {
-  const gchar *properties[] = { MS1_PROP_PATH,
-                                MS1_PROP_DISPLAY_NAME,
-                                NULL };
   GList *child;
   GList *children;
   GtkTreeIter iter;
@@ -192,6 +194,8 @@ browse_cb (GtkTreeView *tree_view,
   MS1Client *provider;
   TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
   gchar *object_path;
+  gchar **urls;
+  gchar *url;
 
   model = gtk_tree_view_get_model (tree_view);
   gtk_tree_model_get_iter (model, &iter, path);
@@ -204,6 +208,12 @@ browse_cb (GtkTreeView *tree_view,
     ms1_client_list_children (provider, object_path, 0, 10, properties, NULL);
 
   for (child = children; child; child = g_list_next (child)) {
+    urls = ms1_client_get_urls (child->data);
+    if (urls && urls[0]) {
+      url = urls[0];
+    } else {
+      url = NULL;
+    }
     gtk_tree_store_append (GTK_TREE_STORE (self->browser_model),
                            &iter_child,
                            &iter);
@@ -212,6 +222,8 @@ browse_cb (GtkTreeView *tree_view,
                         MODEL_PROVIDER, provider,
                         MODEL_TITLE, ms1_client_get_display_name (child->data),
                         MODEL_PATH, ms1_client_get_path (child->data),
+                        MODEL_TYPE, ms1_client_get_item_type (child->data),
+                        MODEL_URL, url,
                         -1);
   }
 
@@ -248,10 +260,13 @@ setup_ui (TotemMediaServer1Plugin *self)
   gtk_container_add (GTK_CONTAINER (scroll), self->browser);
   gtk_container_add (GTK_CONTAINER (box), scroll);
 
-  self->browser_model = GTK_TREE_MODEL (gtk_tree_store_new (3,
-                                                            G_TYPE_OBJECT,   /* Provider */
-                                                            G_TYPE_STRING,   /* Name */
-                                                            G_TYPE_STRING)); /* Path */
+  self->browser_model =
+    GTK_TREE_MODEL (gtk_tree_store_new (5,
+                                        G_TYPE_OBJECT,   /* Provider */
+                                        G_TYPE_STRING,   /* Name */
+                                        G_TYPE_STRING,   /* Path */
+                                        G_TYPE_INT,      /* Type */
+                                        G_TYPE_STRING)); /* URL */
   gtk_tree_view_set_model (GTK_TREE_VIEW (self->browser), self->browser_model);
 
   g_signal_connect (self->browser,
