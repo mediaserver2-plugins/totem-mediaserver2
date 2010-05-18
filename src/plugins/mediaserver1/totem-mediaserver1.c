@@ -61,7 +61,7 @@ typedef struct {
 
 enum {
   MODEL_PROVIDER = 0,
-  MODEL_NAME,
+  MODEL_TITLE,
   MODEL_PATH,
 };
 
@@ -141,7 +141,7 @@ provider_added_cb (MS1Observer *observer,
     gtk_tree_store_set (GTK_TREE_STORE (self->browser_model),
                         &iter,
                         MODEL_PROVIDER, provider,
-                        MODEL_NAME, title,
+                        MODEL_TITLE, title,
                         MODEL_PATH, root_path,
                         -1);
 
@@ -210,7 +210,7 @@ browse_cb (GtkTreeView *tree_view,
     gtk_tree_store_set (GTK_TREE_STORE (self->browser_model),
                         &iter_child,
                         MODEL_PROVIDER, provider,
-                        MODEL_NAME, ms1_client_get_display_name (child->data),
+                        MODEL_TITLE, ms1_client_get_display_name (child->data),
                         MODEL_PATH, ms1_client_get_path (child->data),
                         -1);
   }
@@ -243,7 +243,7 @@ setup_ui (TotemMediaServer1Plugin *self)
   gtk_tree_view_column_add_attribute (col,
                                       renderer,
                                       "text",
-                                      MODEL_NAME);
+                                      MODEL_TITLE);
   gtk_tree_view_insert_column (GTK_TREE_VIEW (self->browser), col, -1);
   gtk_container_add (GTK_CONTAINER (scroll), self->browser);
   gtk_container_add (GTK_CONTAINER (box), scroll);
