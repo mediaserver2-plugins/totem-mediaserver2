@@ -48,7 +48,8 @@
 #define TOTEM_MEDIA_SERVER1_PLUGIN_GET_CLASS(o)                         \
   (G_TYPE_INSTANCE_GET_CLASS ((o), TOTEM_TYPE_MEDIA_SERVER1_PLUGIN, TotemMediaServer1PluginClass))
 
-#define PAGESIZE 25
+#define PAGESIZE    25
+#define MAX_DEFAULT 300
 
 typedef struct {
   TotemPlugin parent;
@@ -87,10 +88,13 @@ static gchar *properties[] = { MS1_PROP_DISPLAY_NAME,
                                MS1_PROP_URLS,
                                NULL };
 
+static guint max_items = MAX_DEFAULT;
+
 G_MODULE_EXPORT GType register_totem_plugin (GTypeModule *module);
 GType totem_media_server1_plugin_get_type (void);
 
 static gboolean impl_activate (TotemPlugin *plugin, TotemObject *totem, GError **error);
+static GtkWidget* configure_plugin (TotemPlugin *plugin);
 
 TOTEM_PLUGIN_REGISTER (TotemMediaServer1Plugin, totem_media_server1_plugin)
 
@@ -99,11 +103,51 @@ totem_media_server1_plugin_class_init (TotemMediaServer1PluginClass *klass)
 {
   TotemPluginClass *plugin_class = TOTEM_PLUGIN_CLASS (klass);
   plugin_class->activate = impl_activate;
+  plugin_class->create_configure_dialog = configure_plugin;
 }
 
 static void
 totem_media_server1_plugin_init (TotemMediaServer1Plugin *plugin)
 {
+}
+
+static void
+max_items_changed_cb (GtkSpinButton *spin,
+                      gpointer user_data)
+{
+  max_items = (guint) gtk_spin_button_get_value (spin);
+}
+
+static GtkWidget *
+configure_plugin (TotemPlugin *plugin)
+{
+  GtkWidget *content_area;
+  GtkWidget *label;
+  GtkWidget *spin;
+  static GtkWidget *dialog = NULL;
+
+  if (!dialog) {
+    dialog = gtk_dialog_new_with_buttons ("Configure MediaServer1 Browser",
+                                          NULL,
+                                          0,
+                                          GTK_STOCK_OK,
+                                          GTK_RESPONSE_ACCEPT,
+                                          NULL);
+
+    content_area = gtk_dialog_get_content_area (GTK_DIALOG (dialog));
+    label = gtk_label_new ("Max. items to retrieve:");
+    gtk_container_add (GTK_CONTAINER (content_area), label);
+    spin = gtk_spin_button_new_with_range (0, G_MAXDOUBLE, 5);
+    gtk_spin_button_set_value (GTK_SPIN_BUTTON (spin), max_items);
+    gtk_container_add (GTK_CONTAINER (content_area), spin);
+
+    g_signal_connect (dialog, "response", G_CALLBACK (gtk_widget_hide), NULL);
+    g_signal_connect (spin, "value-changed", G_CALLBACK (max_items_changed_cb), NULL);
+  }
+
+  gtk_widget_show_all (dialog);
+
+  return dialog;
 }
 
 static GdkPixbuf *
@@ -274,7 +318,7 @@ browse_children (gpointer user_data)
                                          properties,
                                          NULL);
 
-    for (child = children; child; child = g_list_next (child)) {
+    for (child = children; child && data->offset < max_items; child = g_list_next (child)) {
       urls = ms1_client_get_urls (child->data);
       if (urls && urls[0]) {
         url = urls[0];
@@ -300,26 +344,28 @@ browse_children (gpointer user_data)
                           MODEL_ICON, icon,
                           -1);
       g_object_unref (icon);
-      remaining--;
-    }
 
+      /* Expand only first time*/
+      if (data->offset == 0) {
+        path = gtk_tree_path_new_from_string (data->tree_path);
+        gtk_tree_view_expand_row (GTK_TREE_VIEW (data->plugin->browser),
+                                  path,
+                                  FALSE);
+        gtk_tree_path_free (path);
+      }
+
+      remaining--;
+      data->offset++;
+    }
 
     /* Free data */
     g_list_foreach (children, (GFunc) g_hash_table_unref, NULL);
     g_list_free (children);
-
-    /* Expand only first time*/
-    if (data->offset == 0) {
-      path = gtk_tree_path_new_from_string (data->tree_path);
-      gtk_tree_view_expand_row (GTK_TREE_VIEW (data->plugin->browser),
-                                path,
-                                FALSE);
-      gtk_tree_path_free (path);
-    }
   }
 
-  /* Check if it was canceled or there is no more elements */
-  if (data->canceled || remaining > 0) {
+  /* Check if it was canceled, there is no more elements or we reached
+     maximum */
+  if (data->canceled || remaining > 0 || data->offset >= max_items) {
     g_signal_handler_disconnect (data->provider, data->cancel_handler);
     g_object_unref (data->provider);
     g_object_unref (data->plugin);
@@ -329,7 +375,6 @@ browse_children (gpointer user_data)
     g_slice_free (BrowseData, data);
     return FALSE;
   } else {
-    data->offset += PAGESIZE;
     return TRUE;
   }
 }
