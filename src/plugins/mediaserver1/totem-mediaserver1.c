@@ -48,6 +48,8 @@
 #define TOTEM_MEDIA_SERVER1_PLUGIN_GET_CLASS(o)                         \
   (G_TYPE_INSTANCE_GET_CLASS ((o), TOTEM_TYPE_MEDIA_SERVER1_PLUGIN, TotemMediaServer1PluginClass))
 
+#define PAGESIZE 25
+
 typedef struct {
   TotemPlugin parent;
   Totem *totem;
@@ -58,6 +60,17 @@ typedef struct {
 typedef struct {
   TotemPluginClass parent_class;
 } TotemMediaServer1PluginClass;
+
+typedef struct {
+  gboolean canceled;
+  MS1Client *provider;
+  TotemMediaServer1Plugin *plugin;
+  gchar *object_path;
+  gchar *tree_path;
+  guint offset;
+  GtkTreeIter *parent_iter;
+  gulong cancel_handler;
+} BrowseData;
 
 enum {
   MODEL_PROVIDER = 0,
@@ -181,37 +194,33 @@ load_providers (TotemMediaServer1Plugin *self)
 }
 
 static void
-browse_cb (GtkTreeView *tree_view,
-           GtkTreePath *path,
-           GtkTreeViewColumn *column,
-           gpointer user_data)
+cancel_browse (MS1Client *provider,
+               gpointer user_data)
 {
+  BrowseData *data = (BrowseData *) user_data;
+
+  data->canceled = TRUE;
+}
+
+static gboolean
+browse_children (gpointer user_data)
+{
+  BrowseData *data = (BrowseData *) user_data;
   GList *child;
   GList *children;
   GtkTreeIter iter;
-  GtkTreeIter iter_child;
-  GtkTreeModel *model;
-  MS1Client *provider;
-  MS1ItemType type;
-  TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
+  GtkTreePath *path;
   gchar **urls;
-  gchar *object_path;
-  gchar *title;
   gchar *url;
+  gint remaining = PAGESIZE;
 
-  model = gtk_tree_view_get_model (tree_view);
-  gtk_tree_model_get_iter (model, &iter, path);
-  gtk_tree_model_get (model, &iter,
-                      MODEL_PROVIDER, &provider,
-                      MODEL_PATH, &object_path,
-                      MODEL_TYPE, &type,
-                      MODEL_URL, &url,
-                      MODEL_TITLE, &title,
-                      -1);
-
-  if (type == MS1_ITEM_TYPE_CONTAINER) {
-    children =
-      ms1_client_list_children (provider, object_path, 0, 10, properties, NULL);
+  if (!data->canceled) {
+    children = ms1_client_list_children (data->provider,
+                                         data->object_path,
+                                         data->offset,
+                                         PAGESIZE,
+                                         properties,
+                                         NULL);
 
     for (child = children; child; child = g_list_next (child)) {
       urls = ms1_client_get_urls (child->data);
@@ -220,25 +229,98 @@ browse_cb (GtkTreeView *tree_view,
       } else {
         url = NULL;
       }
-      gtk_tree_store_append (GTK_TREE_STORE (self->browser_model),
-                             &iter_child,
-                             &iter);
-      gtk_tree_store_set (GTK_TREE_STORE (self->browser_model),
-                          &iter_child,
-                          MODEL_PROVIDER, provider,
+
+      gtk_tree_store_append (GTK_TREE_STORE (data->plugin->browser_model),
+                             &iter,
+                             data->parent_iter);
+
+
+      gtk_tree_store_set (GTK_TREE_STORE (data->plugin->browser_model),
+                          &iter,
+                          MODEL_PROVIDER, data->provider,
                           MODEL_TITLE, ms1_client_get_display_name (child->data),
                           MODEL_PATH, ms1_client_get_path (child->data),
                           MODEL_TYPE, ms1_client_get_item_type (child->data),
                           MODEL_URL, url,
                           -1);
+      remaining--;
     }
+
 
     /* Free data */
     g_list_foreach (children, (GFunc) g_hash_table_unref, NULL);
     g_list_free (children);
 
-    gtk_tree_view_expand_row (GTK_TREE_VIEW (self->browser), path, FALSE);
+    /* Expand only first time*/
+    if (data->offset == 0) {
+      path = gtk_tree_path_new_from_string (data->tree_path);
+      gtk_tree_view_expand_row (GTK_TREE_VIEW (data->plugin->browser),
+                                path,
+                                FALSE);
+      gtk_tree_path_free (path);
+    }
+  }
+
+  /* Check if it was canceled or there is no more elements */
+  if (data->canceled || remaining > 0) {
+    g_signal_handler_disconnect (data->provider, data->cancel_handler);
+    g_object_unref (data->provider);
+    g_object_unref (data->plugin);
+    g_free (data->object_path);
+    g_free (data->tree_path);
+    g_slice_free (GtkTreeIter, data->parent_iter);
+    g_slice_free (BrowseData, data);
+    return FALSE;
   } else {
+    data->offset += PAGESIZE;
+    return TRUE;
+  }
+}
+
+static void
+browse_cb (GtkTreeView *tree_view,
+           GtkTreePath *path,
+           GtkTreeViewColumn *column,
+           gpointer user_data)
+{
+  BrowseData *data;
+  GtkTreeIter *iter;
+  GtkTreeModel *model;
+  MS1Client *provider;
+  MS1ItemType type;
+  TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
+  gchar *object_path;
+  gchar *title;
+  gchar *url;
+
+  model = gtk_tree_view_get_model (tree_view);
+  iter = g_slice_new (GtkTreeIter);
+  gtk_tree_model_get_iter (model, iter, path);
+  gtk_tree_model_get (model, iter,
+                      MODEL_PROVIDER, &provider,
+                      MODEL_PATH, &object_path,
+                      MODEL_TYPE, &type,
+                      MODEL_URL, &url,
+                      MODEL_TITLE, &title,
+                      -1);
+
+  if (type == MS1_ITEM_TYPE_CONTAINER) {
+    data = g_slice_new (BrowseData);
+    data->canceled = FALSE;
+    data->offset = 0;
+    data->parent_iter = iter;
+    data->object_path = g_strdup (object_path);
+    data->tree_path = gtk_tree_path_to_string (path);
+    data->plugin = g_object_ref (self);
+    data->provider = g_object_ref (provider);
+    data->cancel_handler = g_signal_connect (provider,
+                                             "destroy",
+                                             G_CALLBACK (cancel_browse),
+                                             data);
+
+    g_idle_add (browse_children, data);
+  } else {
+    g_slice_free (GtkTreeIter, iter);
     totem_add_to_playlist_and_play (self->totem, url, title, TRUE);
   }
 }
