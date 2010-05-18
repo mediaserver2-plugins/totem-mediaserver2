@@ -52,6 +52,7 @@ typedef struct {
   TotemPlugin parent;
   Totem *totem;
   GtkTreeModel *browser_model;
+  GtkWidget *browser;
 } TotemMediaServer1Plugin;
 
 typedef struct {
@@ -61,6 +62,7 @@ typedef struct {
 enum {
   MODEL_PROVIDER = 0,
   MODEL_NAME,
+  MODEL_PATH,
 };
 
 G_MODULE_EXPORT GType register_totem_plugin (GTypeModule *module);
@@ -117,13 +119,15 @@ provider_added_cb (MS1Observer *observer,
   GtkTreeIter iter;
   MS1Client *provider;
   TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
+  const gchar *root_path;
   const gchar *title;
   gchar *properties[] = { MS1_PROP_DISPLAY_NAME,
                           NULL };
 
   provider = ms1_client_new (name);
+  root_path = ms1_client_get_root_path (provider);
   result = ms1_client_get_properties (provider,
-                                      ms1_client_get_root_path (provider),
+                                      root_path,
                                       properties,
                                       NULL);
 
@@ -138,6 +142,7 @@ provider_added_cb (MS1Observer *observer,
                         &iter,
                         MODEL_PROVIDER, provider,
                         MODEL_NAME, title,
+                        MODEL_PATH, root_path,
                         -1);
 
     g_signal_connect (provider,
@@ -171,13 +176,58 @@ load_providers (TotemMediaServer1Plugin *self)
 }
 
 static void
+browse_cb (GtkTreeView *tree_view,
+           GtkTreePath *path,
+           GtkTreeViewColumn *column,
+           gpointer user_data)
+{
+  const gchar *properties[] = { MS1_PROP_PATH,
+                                MS1_PROP_DISPLAY_NAME,
+                                NULL };
+  GList *child;
+  GList *children;
+  GtkTreeIter iter;
+  GtkTreeIter iter_child;
+  GtkTreeModel *model;
+  MS1Client *provider;
+  TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
+  gchar *object_path;
+
+  model = gtk_tree_view_get_model (tree_view);
+  gtk_tree_model_get_iter (model, &iter, path);
+  gtk_tree_model_get (model, &iter,
+                      MODEL_PROVIDER, &provider,
+                      MODEL_PATH, &object_path,
+                      -1);
+
+  children =
+    ms1_client_list_children (provider, object_path, 0, 10, properties, NULL);
+
+  for (child = children; child; child = g_list_next (child)) {
+    gtk_tree_store_append (GTK_TREE_STORE (self->browser_model),
+                           &iter_child,
+                           &iter);
+    gtk_tree_store_set (GTK_TREE_STORE (self->browser_model),
+                        &iter_child,
+                        MODEL_PROVIDER, provider,
+                        MODEL_NAME, ms1_client_get_display_name (child->data),
+                        MODEL_PATH, ms1_client_get_path (child->data),
+                        -1);
+  }
+
+  /* Free data */
+  g_list_foreach (children, (GFunc) g_hash_table_unref, NULL);
+  g_list_free (children);
+
+  gtk_tree_view_expand_row (GTK_TREE_VIEW (self->browser), path, FALSE);
+}
+
+static void
 setup_ui (TotemMediaServer1Plugin *self)
 {
   GtkWidget *box;
   GtkWidget *scroll;
-  GtkWidget *browser;
   GtkCellRenderer *renderer;
-  gint i;
   GtkTreeViewColumn *col;
 
   box = gtk_vbox_new (FALSE, 5);
@@ -185,8 +235,8 @@ setup_ui (TotemMediaServer1Plugin *self)
   gtk_scrolled_window_set_policy (GTK_SCROLLED_WINDOW (scroll),
                                   GTK_POLICY_AUTOMATIC,
                                   GTK_POLICY_AUTOMATIC);
-  browser = gtk_tree_view_new ();
-  gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (browser), FALSE);
+  self->browser = gtk_tree_view_new ();
+  gtk_tree_view_set_headers_visible (GTK_TREE_VIEW (self->browser), FALSE);
   col = gtk_tree_view_column_new ();
   renderer = gtk_cell_renderer_text_new ();
   gtk_tree_view_column_pack_start (col, renderer, FALSE);
@@ -194,14 +244,21 @@ setup_ui (TotemMediaServer1Plugin *self)
                                       renderer,
                                       "text",
                                       MODEL_NAME);
-  gtk_tree_view_insert_column (GTK_TREE_VIEW (browser), col, -1);
-  gtk_container_add (GTK_CONTAINER (scroll), browser);
+  gtk_tree_view_insert_column (GTK_TREE_VIEW (self->browser), col, -1);
+  gtk_container_add (GTK_CONTAINER (scroll), self->browser);
   gtk_container_add (GTK_CONTAINER (box), scroll);
 
-  self->browser_model = GTK_TREE_MODEL (gtk_tree_store_new (2,
+  self->browser_model = GTK_TREE_MODEL (gtk_tree_store_new (3,
                                                             G_TYPE_OBJECT,   /* Provider */
-                                                            G_TYPE_STRING)); /* Name */
-  gtk_tree_view_set_model (GTK_TREE_VIEW (browser), self->browser_model);
+                                                            G_TYPE_STRING,   /* Name */
+                                                            G_TYPE_STRING)); /* Path */
+  gtk_tree_view_set_model (GTK_TREE_VIEW (self->browser), self->browser_model);
+
+  g_signal_connect (self->browser,
+                    "row-activated",
+                    G_CALLBACK (browse_cb),
+                    self);
+
   gtk_widget_show_all (box);
   totem_add_sidebar_page (self->totem, "mediaserver1", "MediaServer1", box);
 }
