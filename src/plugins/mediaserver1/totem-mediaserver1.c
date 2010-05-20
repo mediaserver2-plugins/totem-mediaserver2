@@ -310,28 +310,25 @@ cancel_browse (MS1Client *provider,
   data->canceled = TRUE;
 }
 
-static gboolean
-browse_children (gpointer user_data)
+static void
+list_children_reply (GObject *source,
+                     GAsyncResult *result,
+                     gpointer user_data)
 {
   BrowseData *data = (BrowseData *) user_data;
-  GdkPixbuf *icon;
   GList *child;
   GList *children;
+  GdkPixbuf *icon;
   GtkTreeIter iter;
-  GtkTreePath *path;
+  MS1Client *provider = MS1_CLIENT (source);
   MS1ItemType type;
   gchar **urls;
+  GtkTreePath *path;
   gchar *url;
   gint remaining = PAGESIZE;
 
   if (!data->canceled) {
-    children = ms1_client_list_children (data->provider,
-                                         data->object_path,
-                                         data->offset,
-                                         PAGESIZE,
-                                         properties,
-                                         NULL);
-
+    children = ms1_client_list_children_finish (provider, result, NULL);
     for (child = children; child && data->offset < max_items; child = g_list_next (child)) {
       urls = ms1_client_get_urls (child->data);
       if (urls && urls[0]) {
@@ -346,8 +343,6 @@ browse_children (gpointer user_data)
       gtk_tree_store_append (GTK_TREE_STORE (data->plugin->browser_model),
                              &iter,
                              data->parent_iter);
-
-
       gtk_tree_store_set (GTK_TREE_STORE (data->plugin->browser_model),
                           &iter,
                           MODEL_PROVIDER, data->provider,
@@ -387,9 +382,15 @@ browse_children (gpointer user_data)
     g_free (data->tree_path);
     g_slice_free (GtkTreeIter, data->parent_iter);
     g_slice_free (BrowseData, data);
-    return FALSE;
   } else {
-    return TRUE;
+    /* Continue browsing */
+    ms1_client_list_children_async (data->provider,
+                                    data->object_path,
+                                    data->offset,
+                                    PAGESIZE,
+                                    properties,
+                                    list_children_reply,
+                                    data);
   }
 }
 
@@ -434,7 +435,13 @@ browse_cb (GtkTreeView *tree_view,
                                              G_CALLBACK (cancel_browse),
                                              data);
 
-    g_idle_add (browse_children, data);
+    ms1_client_list_children_async (data->provider,
+                                    data->object_path,
+                                    data->offset,
+                                    PAGESIZE,
+                                    properties,
+                                    list_children_reply,
+                                    data);
   } else {
     g_slice_free (GtkTreeIter, iter);
     totem_add_to_playlist_and_play (self->totem, url, title, TRUE);
