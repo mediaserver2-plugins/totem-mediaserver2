@@ -94,6 +94,7 @@ G_MODULE_EXPORT GType register_totem_plugin (GTypeModule *module);
 GType totem_media_server1_plugin_get_type (void);
 
 static gboolean impl_activate (TotemPlugin *plugin, TotemObject *totem, GError **error);
+static void impl_deactivate (TotemPlugin *plugin, TotemObject *totem);
 static GtkWidget* configure_plugin (TotemPlugin *plugin);
 
 TOTEM_PLUGIN_REGISTER (TotemMediaServer1Plugin, totem_media_server1_plugin)
@@ -103,6 +104,7 @@ totem_media_server1_plugin_class_init (TotemMediaServer1PluginClass *klass)
 {
   TotemPluginClass *plugin_class = TOTEM_PLUGIN_CLASS (klass);
   plugin_class->activate = impl_activate;
+  plugin_class->deactivate = impl_deactivate;
   plugin_class->create_configure_dialog = configure_plugin;
 }
 
@@ -219,31 +221,27 @@ provider_removed_cb (MS1Client *provider,
 }
 
 static void
-provider_added_cb (MS1Observer *observer,
-                   const gchar *name,
-                   gpointer user_data)
+get_properties_reply (GObject *source,
+                      GAsyncResult *result,
+                      gpointer user_data)
 {
   GdkPixbuf *icon;
-  GHashTable *result;
+  GHashTable *properties;
   GtkTreeIter iter;
-  MS1Client *provider;
+  MS1Client *provider = MS1_CLIENT (source);
   MS1ItemType type;
   TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
   const gchar *title;
 
-  provider = ms1_client_new (name);
-  result = ms1_client_get_properties (provider,
-                                      ms1_client_get_root_path (provider),
-                                      properties,
-                                      NULL);
+  properties = ms1_client_get_properties_finish (provider, result, NULL);
 
-  if (result) {
-    title = ms1_client_get_display_name (result);
+  if (properties) {
+    title = ms1_client_get_display_name (properties);
     if (!title || title[0] == '\0') {
-      title = name;
+      title = ms1_client_get_provider_name (provider);
     }
 
-    type =  ms1_client_get_item_type (result);
+    type =  ms1_client_get_item_type (properties);
     icon = load_icon (type);
 
     gtk_tree_store_append (GTK_TREE_STORE (self->browser_model), &iter, NULL);
@@ -251,7 +249,7 @@ provider_added_cb (MS1Observer *observer,
                         &iter,
                         MODEL_PROVIDER, provider,
                         MODEL_TITLE, title,
-                        MODEL_PATH, ms1_client_get_path (result),
+                        MODEL_PATH, ms1_client_get_path (properties),
                         MODEL_TYPE, type,
                         MODEL_ICON, icon,
                         -1);
@@ -262,10 +260,26 @@ provider_added_cb (MS1Observer *observer,
                       self);
 
     g_object_unref (icon);
-    g_hash_table_unref (result);
+    g_hash_table_unref (properties);
   }
 
-  g_object_unref (provider);
+  g_object_unref (source);
+}
+
+static void
+provider_added_cb (MS1Observer *observer,
+                   const gchar *name,
+                   gpointer user_data)
+{
+  MS1Client *provider;
+  TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
+
+  provider = ms1_client_new (name);
+  ms1_client_get_properties_async (provider,
+                                   ms1_client_get_root_path (provider),
+                                   properties,
+                                   get_properties_reply,
+                                   self);
 }
 
 static void
@@ -484,4 +498,15 @@ impl_activate (TotemPlugin *plugin,
   setup_ui (self);
   load_providers(self);
   return TRUE;
+}
+
+static void
+impl_deactivate (TotemPlugin *plugin,
+                 TotemObject *totem)
+{
+  TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (plugin);
+
+  totem_remove_sidebar_page (totem, "mediaserver1");
+  g_object_unref (self->totem);
+  g_object_unref (self->browser_model);
 }
