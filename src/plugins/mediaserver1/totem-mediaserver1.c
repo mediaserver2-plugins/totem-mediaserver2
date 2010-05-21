@@ -56,6 +56,7 @@ typedef struct {
   Totem *totem;
   GtkTreeModel *browser_model;
   GtkWidget *browser;
+  gulong new_cb_handler;
 } TotemMediaServer1Plugin;
 
 typedef struct {
@@ -518,8 +519,11 @@ static void
 impl_deactivate (TotemPlugin *plugin,
                  TotemObject *totem)
 {
+  MS1Observer *observer;
   TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (plugin);
 
+  observer = ms1_observer_get_instance ();
+  g_signal_handlers_disconnect_by_func (observer, provider_added_cb, self);
   totem_remove_sidebar_page (totem, "mediaserver1");
   g_object_unref (self->totem);
   g_object_unref (self->browser_model);
