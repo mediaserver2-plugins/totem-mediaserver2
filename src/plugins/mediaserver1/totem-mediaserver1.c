@@ -413,6 +413,7 @@ browse_cb (GtkTreeView *tree_view,
   model = gtk_tree_view_get_model (tree_view);
   iter = g_slice_new (GtkTreeIter);
   gtk_tree_model_get_iter (model, iter, path);
+
   gtk_tree_model_get (model, iter,
                       MODEL_PROVIDER, &provider,
                       MODEL_PATH, &object_path,
@@ -422,26 +423,30 @@ browse_cb (GtkTreeView *tree_view,
                       -1);
 
   if (type == MS1_ITEM_TYPE_CONTAINER) {
-    data = g_slice_new (BrowseData);
-    data->canceled = FALSE;
-    data->offset = 0;
-    data->parent_iter = iter;
-    data->object_path = g_strdup (object_path);
-    data->tree_path = gtk_tree_path_to_string (path);
-    data->plugin = g_object_ref (self);
-    data->provider = g_object_ref (provider);
-    data->cancel_handler = g_signal_connect (provider,
-                                             "destroy",
-                                             G_CALLBACK (cancel_browse),
-                                             data);
+    if (gtk_tree_model_iter_has_child (model, iter)) {
+      gtk_tree_view_expand_row (tree_view, path, FALSE);
+    } else {
+      data = g_slice_new (BrowseData);
+      data->canceled = FALSE;
+      data->offset = 0;
+      data->parent_iter = iter;
+      data->object_path = g_strdup (object_path);
+      data->tree_path = gtk_tree_path_to_string (path);
+      data->plugin = g_object_ref (self);
+      data->provider = g_object_ref (provider);
+      data->cancel_handler = g_signal_connect (provider,
+                                               "destroy",
+                                               G_CALLBACK (cancel_browse),
+                                               data);
 
-    ms1_client_list_children_async (data->provider,
-                                    data->object_path,
-                                    data->offset,
-                                    PAGESIZE,
-                                    properties,
-                                    list_children_reply,
-                                    data);
+      ms1_client_list_children_async (data->provider,
+                                      data->object_path,
+                                      data->offset,
+                                      PAGESIZE,
+                                      properties,
+                                      list_children_reply,
+                                      data);
+    }
   } else {
     g_slice_free (GtkTreeIter, iter);
     totem_add_to_playlist_and_play (self->totem, url, title, TRUE);
