@@ -449,7 +449,9 @@ browse_cb (GtkTreeView *tree_view,
     }
   } else {
     g_slice_free (GtkTreeIter, iter);
-    totem_add_to_playlist_and_play (self->totem, url, title, TRUE);
+    if (url) {
+      totem_add_to_playlist_and_play (self->totem, url, title, TRUE);
+    }
   }
 }
 
