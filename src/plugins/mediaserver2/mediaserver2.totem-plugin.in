@@ -1,8 +1,8 @@
 [Totem Plugin]
-Module=mediaserver1
+Module=mediaserver2
 IAge=1
-_Name=MediaServer1 Browser
-_Description=A plugin to let you browse media content through MediaServer1 DBUS specification.
+_Name=MediaServer2 Browser
+_Description=A plugin to let you browse media content through MediaServer2 DBUS specification.
 Authors=Juan A. Suarez Romero <jasuarez@igalia.com>
 Copyright=Copyright © 2010 Igalia S.L.
 Website=http://www.gnome.org/projects/totem/

@@ -1,11 +1,11 @@
 modules_flags =	-export_dynamic -avoid-version -module
 
-plugindir =		$(PLUGINDIR)/mediaserver1
-plugin_LTLIBRARIES =	libmediaserver1.la
+plugindir =		$(PLUGINDIR)/mediaserver2
+plugin_LTLIBRARIES =	libmediaserver2.la
 
 uidir =	$(plugindir)
 
-plugin_in_files =	mediaserver1.totem-plugin.in
+plugin_in_files =	mediaserver2.totem-plugin.in
 
 %.totem-plugin: %.totem-plugin.in $(INTLTOOL_MERGE) $(wildcard $(top_srcdir)/po/*po) ; $(INTLTOOL_MERGE) $(top_srcdir)/po $< $@ -d -u -c $(top_builddir)/po/.intltool-merge-cache
 
@@ -22,14 +22,14 @@ common_defines =						\
 	-DTOTEM_PLUGIN_DIR=\""$(libdir)/totem/plugins"\"	\
 	$(DISABLE_DEPRECATED)
 
-libmediaserver1_la_SOURCES =	totem-mediaserver1.c
-libmediaserver1_la_LDFLAGS =	$(modules_flags)
-libmediaserver1_la_CPPFLAGS =	$(common_defines)
-libmediaserver1_la_LIBADD =	$(LIBMS1_LIBS)
+libmediaserver2_la_SOURCES =	totem-mediaserver2.c
+libmediaserver2_la_LDFLAGS =	$(modules_flags)
+libmediaserver2_la_CPPFLAGS =	$(common_defines)
+libmediaserver2_la_LIBADD =	$(LIBMS2_LIBS)
 
-libmediaserver1_la_CFLAGS =		\
+libmediaserver2_la_CFLAGS =		\
 	$(DEPENDENCY_CFLAGS)		\
-	$(LIBMS1_CFLAGS)		\
+	$(LIBMS2_CFLAGS)		\
 	$(WARN_CFLAGS)			\
 	$(DBUS_CFLAGS)			\
 	$(UNIQUE_CFLAGS)		\

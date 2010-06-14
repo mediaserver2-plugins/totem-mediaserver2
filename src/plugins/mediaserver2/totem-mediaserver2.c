@@ -27,26 +27,26 @@
 
 #include <config.h>
 #include <glib/gi18n-lib.h>
-#include <media-server1-client.h>
-#include <media-server1-observer.h>
+#include <media-server2-client.h>
+#include <media-server2-observer.h>
 
 #include "totem-plugin.h"
 #include "totem-interface.h"
 #include "totem-private.h"
 #include "totem.h"
 
-#define TOTEM_TYPE_MEDIA_SERVER1_PLUGIN         \
-  (totem_media_server1_plugin_get_type ())
-#define TOTEM_MEDIA_SERVER1_PLUGIN(o)                                   \
-  (G_TYPE_CHECK_INSTANCE_CAST ((o), TOTEM_TYPE_MEDIA_SERVER1_PLUGIN, TotemMediaServer1Plugin))
-#define TOTEM_MEDIA_SERVER1_PLUGIN_CLASS(k)                             \
-  (G_TYPE_CHECK_CLASS_CAST((k), TOTEM_TYPE_MEDIA_SERVER1_PLUGIN, TotemMediaServer1PluginClass))
-#define TOTEM_IS_MEDIA_SERVER1_PLUGIN(o)                                \
-  (G_TYPE_CHECK_INSTANCE_TYPE ((o), TOTEM_TYPE_MEDIA_SERVER1_PLUGIN))
-#define TOTEM_IS_MEDIA_SERVER1_PLUGIN_CLASS(k)                          \
-  (G_TYPE_CHECK_CLASS_TYPE ((k), TOTEM_TYPE_MEDIA_SERVER1_PLUGIN))
-#define TOTEM_MEDIA_SERVER1_PLUGIN_GET_CLASS(o)                         \
-  (G_TYPE_INSTANCE_GET_CLASS ((o), TOTEM_TYPE_MEDIA_SERVER1_PLUGIN, TotemMediaServer1PluginClass))
+#define TOTEM_TYPE_MEDIA_SERVER2_PLUGIN         \
+  (totem_media_server2_plugin_get_type ())
+#define TOTEM_MEDIA_SERVER2_PLUGIN(o)                                   \
+  (G_TYPE_CHECK_INSTANCE_CAST ((o), TOTEM_TYPE_MEDIA_SERVER2_PLUGIN, TotemMediaServer2Plugin))
+#define TOTEM_MEDIA_SERVER2_PLUGIN_CLASS(k)                             \
+  (G_TYPE_CHECK_CLASS_CAST((k), TOTEM_TYPE_MEDIA_SERVER2_PLUGIN, TotemMediaServer2PluginClass))
+#define TOTEM_IS_MEDIA_SERVER2_PLUGIN(o)                                \
+  (G_TYPE_CHECK_INSTANCE_TYPE ((o), TOTEM_TYPE_MEDIA_SERVER2_PLUGIN))
+#define TOTEM_IS_MEDIA_SERVER2_PLUGIN_CLASS(k)                          \
+  (G_TYPE_CHECK_CLASS_TYPE ((k), TOTEM_TYPE_MEDIA_SERVER2_PLUGIN))
+#define TOTEM_MEDIA_SERVER2_PLUGIN_GET_CLASS(o)                         \
+  (G_TYPE_INSTANCE_GET_CLASS ((o), TOTEM_TYPE_MEDIA_SERVER2_PLUGIN, TotemMediaServer2PluginClass))
 
 #define PAGESIZE    25
 #define MAX_DEFAULT 300
@@ -57,16 +57,16 @@ typedef struct {
   GtkTreeModel *browser_model;
   GtkWidget *browser;
   gulong new_cb_handler;
-} TotemMediaServer1Plugin;
+} TotemMediaServer2Plugin;
 
 typedef struct {
   TotemPluginClass parent_class;
-} TotemMediaServer1PluginClass;
+} TotemMediaServer2PluginClass;
 
 typedef struct {
   gboolean canceled;
-  MS1Client *provider;
-  TotemMediaServer1Plugin *plugin;
+  MS2Client *provider;
+  TotemMediaServer2Plugin *plugin;
   gchar *object_path;
   gchar *tree_path;
   guint offset;
@@ -83,25 +83,25 @@ enum {
   MODEL_ICON,
 };
 
-static gchar *properties[] = { MS1_PROP_DISPLAY_NAME,
-                               MS1_PROP_PATH,
-                               MS1_PROP_TYPE,
-                               MS1_PROP_URLS,
+static gchar *properties[] = { MS2_PROP_DISPLAY_NAME,
+                               MS2_PROP_PATH,
+                               MS2_PROP_TYPE,
+                               MS2_PROP_URLS,
                                NULL };
 
 static guint max_items = MAX_DEFAULT;
 
 G_MODULE_EXPORT GType register_totem_plugin (GTypeModule *module);
-GType totem_media_server1_plugin_get_type (void);
+GType totem_media_server2_plugin_get_type (void);
 
 static gboolean impl_activate (TotemPlugin *plugin, TotemObject *totem, GError **error);
 static void impl_deactivate (TotemPlugin *plugin, TotemObject *totem);
 static GtkWidget* configure_plugin (TotemPlugin *plugin);
 
-TOTEM_PLUGIN_REGISTER (TotemMediaServer1Plugin, totem_media_server1_plugin)
+TOTEM_PLUGIN_REGISTER (TotemMediaServer2Plugin, totem_media_server2_plugin)
 
 static void
-totem_media_server1_plugin_class_init (TotemMediaServer1PluginClass *klass)
+totem_media_server2_plugin_class_init (TotemMediaServer2PluginClass *klass)
 {
   TotemPluginClass *plugin_class = TOTEM_PLUGIN_CLASS (klass);
   plugin_class->activate = impl_activate;
@@ -110,7 +110,7 @@ totem_media_server1_plugin_class_init (TotemMediaServer1PluginClass *klass)
 }
 
 static void
-totem_media_server1_plugin_init (TotemMediaServer1Plugin *plugin)
+totem_media_server2_plugin_init (TotemMediaServer2Plugin *plugin)
 {
 }
 
@@ -130,7 +130,7 @@ configure_plugin (TotemPlugin *plugin)
   static GtkWidget *dialog = NULL;
 
   if (!dialog) {
-    dialog = gtk_dialog_new_with_buttons ("Configure MediaServer1 Browser",
+    dialog = gtk_dialog_new_with_buttons ("Configure MediaServer2 Browser",
                                           NULL,
                                           0,
                                           GTK_STOCK_OK,
@@ -154,7 +154,7 @@ configure_plugin (TotemPlugin *plugin)
 }
 
 static GdkPixbuf *
-load_icon (MS1ItemType type)
+load_icon (MS2ItemType type)
 {
   GdkScreen *screen;
   GtkIconTheme *theme;
@@ -163,19 +163,19 @@ load_icon (MS1ItemType type)
   const gchar *icon;
 
   switch (type) {
-  case MS1_ITEM_TYPE_CONTAINER:
+  case MS2_ITEM_TYPE_CONTAINER:
     icon = GTK_STOCK_DIRECTORY;
     break;
-  case MS1_ITEM_TYPE_VIDEO:
-  case MS1_ITEM_TYPE_MOVIE:
+  case MS2_ITEM_TYPE_VIDEO:
+  case MS2_ITEM_TYPE_MOVIE:
     icon = "gnome-mime-video";
     break;
-  case MS1_ITEM_TYPE_AUDIO:
-  case MS1_ITEM_TYPE_MUSIC:
+  case MS2_ITEM_TYPE_AUDIO:
+  case MS2_ITEM_TYPE_MUSIC:
     icon = "gnome-mime-audio";
     break;
-  case MS1_ITEM_TYPE_IMAGE:
-  case MS1_ITEM_TYPE_PHOTO:
+  case MS2_ITEM_TYPE_IMAGE:
+  case MS2_ITEM_TYPE_PHOTO:
     icon = "gnome-mime-image";
     break;
   default:
@@ -201,7 +201,7 @@ remove_provider_from_model (GtkTreeModel *model,
                             GtkTreeIter *iter,
                             gpointer user_data)
 {
-  MS1Client *provider;
+  MS2Client *provider;
 
   gtk_tree_model_get (model, iter, MODEL_PROVIDER, &provider, -1);
   if (provider == user_data) {
@@ -213,10 +213,10 @@ remove_provider_from_model (GtkTreeModel *model,
 }
 
 static void
-provider_removed_cb (MS1Client *provider,
+provider_removed_cb (MS2Client *provider,
                      gpointer user_data)
 {
-  TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
+  TotemMediaServer2Plugin *self = TOTEM_MEDIA_SERVER2_PLUGIN (user_data);
 
   gtk_tree_model_foreach (self->browser_model, remove_provider_from_model, provider);
 }
@@ -229,20 +229,20 @@ get_properties_reply (GObject *source,
   GdkPixbuf *icon;
   GHashTable *properties;
   GtkTreeIter iter;
-  MS1Client *provider = MS1_CLIENT (source);
-  MS1ItemType type;
-  TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
+  MS2Client *provider = MS2_CLIENT (source);
+  MS2ItemType type;
+  TotemMediaServer2Plugin *self = TOTEM_MEDIA_SERVER2_PLUGIN (user_data);
   const gchar *title;
 
-  properties = ms1_client_get_properties_finish (provider, result, NULL);
+  properties = ms2_client_get_properties_finish (provider, result, NULL);
 
   if (properties) {
-    title = ms1_client_get_display_name (properties);
+    title = ms2_client_get_display_name (properties);
     if (!title || title[0] == '\0') {
-      title = ms1_client_get_provider_name (provider);
+      title = ms2_client_get_provider_name (provider);
     }
 
-    type =  ms1_client_get_item_type (properties);
+    type =  ms2_client_get_item_type (properties);
     icon = load_icon (type);
 
     gtk_tree_store_append (GTK_TREE_STORE (self->browser_model), &iter, NULL);
@@ -250,7 +250,7 @@ get_properties_reply (GObject *source,
                         &iter,
                         MODEL_PROVIDER, provider,
                         MODEL_TITLE, title,
-                        MODEL_PATH, ms1_client_get_path (properties),
+                        MODEL_PATH, ms2_client_get_path (properties),
                         MODEL_TYPE, type,
                         MODEL_ICON, icon,
                         -1);
@@ -268,33 +268,33 @@ get_properties_reply (GObject *source,
 }
 
 static void
-provider_added_cb (MS1Observer *observer,
+provider_added_cb (MS2Observer *observer,
                    const gchar *name,
                    gpointer user_data)
 {
-  MS1Client *provider;
-  TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
+  MS2Client *provider;
+  TotemMediaServer2Plugin *self = TOTEM_MEDIA_SERVER2_PLUGIN (user_data);
 
-  provider = ms1_client_new (name);
-  ms1_client_get_properties_async (provider,
-                                   ms1_client_get_root_path (provider),
+  provider = ms2_client_new (name);
+  ms2_client_get_properties_async (provider,
+                                   ms2_client_get_root_path (provider),
                                    properties,
                                    get_properties_reply,
                                    self);
 }
 
 static void
-load_providers (TotemMediaServer1Plugin *self)
+load_providers (TotemMediaServer2Plugin *self)
 {
-  MS1Observer *observer;
+  MS2Observer *observer;
   gchar **providers;
   gchar **provider;
 
-  observer = ms1_observer_get_instance ();
+  observer = ms2_observer_get_instance ();
   g_signal_connect (observer, "new", G_CALLBACK (provider_added_cb), self);
 
   /* Load running providers */
-  providers = ms1_client_get_providers ();
+  providers = ms2_client_get_providers ();
   if (providers) {
     for (provider = providers; *provider; provider++) {
       provider_added_cb (observer, *provider, self);
@@ -303,7 +303,7 @@ load_providers (TotemMediaServer1Plugin *self)
 }
 
 static void
-cancel_browse (MS1Client *provider,
+cancel_browse (MS2Client *provider,
                gpointer user_data)
 {
   BrowseData *data = (BrowseData *) user_data;
@@ -321,24 +321,24 @@ list_children_reply (GObject *source,
   GList *children;
   GdkPixbuf *icon;
   GtkTreeIter iter;
-  MS1Client *provider = MS1_CLIENT (source);
-  MS1ItemType type;
+  MS2Client *provider = MS2_CLIENT (source);
+  MS2ItemType type;
   gchar **urls;
   GtkTreePath *path;
   gchar *url;
   gint remaining = PAGESIZE;
 
   if (!data->canceled) {
-    children = ms1_client_list_children_finish (provider, result, NULL);
+    children = ms2_client_list_children_finish (provider, result, NULL);
     for (child = children; child && data->offset < max_items; child = g_list_next (child)) {
-      urls = ms1_client_get_urls (child->data);
+      urls = ms2_client_get_urls (child->data);
       if (urls && urls[0]) {
         url = urls[0];
       } else {
         url = NULL;
       }
 
-      type = ms1_client_get_item_type (child->data);
+      type = ms2_client_get_item_type (child->data);
       icon = load_icon (type);
 
       gtk_tree_store_append (GTK_TREE_STORE (data->plugin->browser_model),
@@ -347,8 +347,8 @@ list_children_reply (GObject *source,
       gtk_tree_store_set (GTK_TREE_STORE (data->plugin->browser_model),
                           &iter,
                           MODEL_PROVIDER, data->provider,
-                          MODEL_TITLE, ms1_client_get_display_name (child->data),
-                          MODEL_PATH, ms1_client_get_path (child->data),
+                          MODEL_TITLE, ms2_client_get_display_name (child->data),
+                          MODEL_PATH, ms2_client_get_path (child->data),
                           MODEL_TYPE, type,
                           MODEL_URL, url,
                           MODEL_ICON, icon,
@@ -385,7 +385,7 @@ list_children_reply (GObject *source,
     g_slice_free (BrowseData, data);
   } else {
     /* Continue browsing */
-    ms1_client_list_children_async (data->provider,
+    ms2_client_list_children_async (data->provider,
                                     data->object_path,
                                     data->offset,
                                     PAGESIZE,
@@ -404,9 +404,9 @@ browse_cb (GtkTreeView *tree_view,
   BrowseData *data;
   GtkTreeIter *iter;
   GtkTreeModel *model;
-  MS1Client *provider;
-  MS1ItemType type;
-  TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (user_data);
+  MS2Client *provider;
+  MS2ItemType type;
+  TotemMediaServer2Plugin *self = TOTEM_MEDIA_SERVER2_PLUGIN (user_data);
   gchar *object_path;
   gchar *title;
   gchar *url;
@@ -423,7 +423,7 @@ browse_cb (GtkTreeView *tree_view,
                       MODEL_TITLE, &title,
                       -1);
 
-  if (type == MS1_ITEM_TYPE_CONTAINER) {
+  if (type == MS2_ITEM_TYPE_CONTAINER) {
     if (gtk_tree_model_iter_has_child (model, iter)) {
       gtk_tree_view_expand_row (tree_view, path, FALSE);
     } else {
@@ -440,7 +440,7 @@ browse_cb (GtkTreeView *tree_view,
                                                G_CALLBACK (cancel_browse),
                                                data);
 
-      ms1_client_list_children_async (data->provider,
+      ms2_client_list_children_async (data->provider,
                                       data->object_path,
                                       data->offset,
                                       PAGESIZE,
@@ -457,7 +457,7 @@ browse_cb (GtkTreeView *tree_view,
 }
 
 static void
-setup_ui (TotemMediaServer1Plugin *self)
+setup_ui (TotemMediaServer2Plugin *self)
 {
   GtkWidget *box;
   GtkWidget *scroll;
@@ -499,7 +499,7 @@ setup_ui (TotemMediaServer1Plugin *self)
                     self);
 
   gtk_widget_show_all (box);
-  totem_add_sidebar_page (self->totem, "mediaserver1", "MediaServer1", box);
+  totem_add_sidebar_page (self->totem, "mediaserver2", "MediaServer2", box);
 }
 
 static gboolean
@@ -507,7 +507,7 @@ impl_activate (TotemPlugin *plugin,
                TotemObject *totem,
                GError **error)
 {
-  TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (plugin);
+  TotemMediaServer2Plugin *self = TOTEM_MEDIA_SERVER2_PLUGIN (plugin);
 
   self->totem = g_object_ref (totem);
   setup_ui (self);
@@ -519,12 +519,12 @@ static void
 impl_deactivate (TotemPlugin *plugin,
                  TotemObject *totem)
 {
-  MS1Observer *observer;
-  TotemMediaServer1Plugin *self = TOTEM_MEDIA_SERVER1_PLUGIN (plugin);
+  MS2Observer *observer;
+  TotemMediaServer2Plugin *self = TOTEM_MEDIA_SERVER2_PLUGIN (plugin);
 
-  observer = ms1_observer_get_instance ();
+  observer = ms2_observer_get_instance ();
   g_signal_handlers_disconnect_by_func (observer, provider_added_cb, self);
-  totem_remove_sidebar_page (totem, "mediaserver1");
+  totem_remove_sidebar_page (totem, "mediaserver2");
   g_object_unref (self->totem);
   g_object_unref (self->browser_model);
 }

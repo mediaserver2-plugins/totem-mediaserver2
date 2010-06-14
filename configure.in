@@ -68,7 +68,7 @@ AC_SUBST(TOTEM_API_VERSION)
 AC_DEFINE_UNQUOTED(TOTEM_API_VERSION, ["$TOTEM_API_VERSION"], [Define to the Totem plugin API version])
 
 # The full list of plugins
-allowed_plugins="bemused brasero-disc-recorder chapters coherence_upnp dbus-service im-status gromit iplayer jamendo lirc media-player-keys ontop opensubtitles properties publish pythonconsole save-file sample-python sample-vala screensaver screenshot sidebar-test skipto thumbnail tracker youtube zeitgeist-dp mediaserver1"
+allowed_plugins="bemused brasero-disc-recorder chapters coherence_upnp dbus-service im-status gromit iplayer jamendo lirc media-player-keys ontop opensubtitles properties publish pythonconsole save-file sample-python sample-vala screensaver screenshot sidebar-test skipto thumbnail tracker youtube zeitgeist-dp mediaserver2"
 
 PLUGINDIR='${libdir}/totem/plugins'
 AC_SUBST(PLUGINDIR)
@@ -537,11 +537,11 @@ for plugin in ${used_plugins}; do
 				fi
 			fi
 		;;
-		mediaserver1)
-			PKG_CHECK_MODULES(LIBMS1, mediaserver1,
-				[HAVE_MS1=yes], [HAVE_MS1=no])
-			if test "${HAVE_MS1}"  != "yes" ; then
-				plugin_error_or_ignore "you need mediaserver1 installed for the MediaServerDBus plugin"
+		mediaserver2)
+			PKG_CHECK_MODULES(LIBMS2, mediaserver2,
+				[HAVE_MS2=yes], [HAVE_MS2=no])
+			if test "${HAVE_MS2}"  != "yes" ; then
+				plugin_error_or_ignore "you need mediaserver2 installed for the MediaServerDBus plugin"
 				add_plugin="0"
 			fi
 		;;
@@ -811,7 +811,7 @@ src/plugins/jamendo/org.gnome.totem.plugins.jamendo.gschema.xml.in
 src/plugins/brasero-disc-recorder/Makefile
 src/plugins/chapters/Makefile
 src/plugins/zeitgeist-dp/Makefile
-src/plugins/mediaserver1/Makefile
+src/plugins/mediaserver2/Makefile
 src/backend/Makefile
 browser-plugin/Makefile
 data/Makefile
