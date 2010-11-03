@@ -98,38 +98,6 @@ max_items_changed_cb (GtkSpinButton *spin,
   max_items = (guint) gtk_spin_button_get_value (spin);
 }
 
-static GtkWidget *
-impl_create_configure_widget (PeasGtkConfigurable *configurable)
-{
-  GtkWidget *content_area;
-  GtkWidget *label;
-  GtkWidget *spin;
-  static GtkWidget *dialog = NULL;
-
-  if (!dialog) {
-    dialog = gtk_dialog_new_with_buttons ("Configure MediaServer2 Browser",
-                                          NULL,
-                                          0,
-                                          GTK_STOCK_OK,
-                                          GTK_RESPONSE_ACCEPT,
-                                          NULL);
-
-    content_area = gtk_dialog_get_content_area (GTK_DIALOG (dialog));
-    label = gtk_label_new ("Max. items to retrieve:");
-    gtk_container_add (GTK_CONTAINER (content_area), label);
-    spin = gtk_spin_button_new_with_range (0, G_MAXDOUBLE, 5);
-    gtk_spin_button_set_value (GTK_SPIN_BUTTON (spin), max_items);
-    gtk_container_add (GTK_CONTAINER (content_area), spin);
-
-    g_signal_connect (dialog, "response", G_CALLBACK (gtk_widget_hide), NULL);
-    g_signal_connect (spin, "value-changed", G_CALLBACK (max_items_changed_cb), NULL);
-  }
-
-  gtk_widget_show_all (dialog);
-
-  return dialog;
-}
-
 static GdkPixbuf *
 load_icon (MS2ItemType type)
 {
