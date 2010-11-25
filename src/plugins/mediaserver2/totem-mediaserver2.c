@@ -151,6 +151,7 @@ remove_provider_from_model (GtkTreeModel *model,
   gtk_tree_model_get (model, iter, MODEL_PROVIDER, &provider, -1);
   if (provider == user_data) {
     gtk_tree_store_remove (GTK_TREE_STORE (model), iter);
+    g_object_unref (provider);
     return TRUE;
   }
 
