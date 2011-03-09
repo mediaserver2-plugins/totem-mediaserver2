@@ -91,13 +91,6 @@ static gchar *properties[] = { MS2_PROP_DISPLAY_NAME,
 
 static guint max_items = MAX_DEFAULT;
 
-static void
-max_items_changed_cb (GtkSpinButton *spin,
-                      gpointer user_data)
-{
-  max_items = (guint) gtk_spin_button_get_value (spin);
-}
-
 static GdkPixbuf *
 load_icon (MS2ItemType type)
 {
