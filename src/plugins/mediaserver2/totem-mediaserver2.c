@@ -103,41 +103,53 @@ load_icon (MS2ItemType type)
 {
   GdkScreen *screen;
   GtkIconTheme *theme;
-  GdkPixbuf *pixbuf;
   GError *error = NULL;
-  const gchar *icon;
+  gint i;
+  enum { ICON_DIRECTORY = 0,
+         ICON_AUDIO,
+         ICON_VIDEO,
+         ICON_IMAGE,
+         ICON_DEFAULT };
+  const gchar *icon_name[] = { GTK_STOCK_DIRECTORY,
+                               "gnome-mime-audio",
+                               "gnome-mime-video",
+                               "gnome-mime-image",
+                               GTK_STOCK_FILE };
+  static GdkPixbuf *pixbuf[5] = { NULL };
 
   switch (type) {
   case MS2_ITEM_TYPE_CONTAINER:
-    icon = GTK_STOCK_DIRECTORY;
+    i = ICON_DIRECTORY;
     break;
   case MS2_ITEM_TYPE_VIDEO:
   case MS2_ITEM_TYPE_MOVIE:
-    icon = "gnome-mime-video";
+    i = ICON_VIDEO;
     break;
   case MS2_ITEM_TYPE_AUDIO:
   case MS2_ITEM_TYPE_MUSIC:
-    icon = "gnome-mime-audio";
+    i = ICON_AUDIO;
     break;
   case MS2_ITEM_TYPE_IMAGE:
   case MS2_ITEM_TYPE_PHOTO:
-    icon = "gnome-mime-image";
+    i = ICON_IMAGE;
     break;
   default:
-    icon = GTK_STOCK_FILE;
+    i = ICON_DEFAULT;
     break;
   }
 
-  screen = gdk_screen_get_default ();
-  theme = gtk_icon_theme_get_for_screen (screen);
-  pixbuf = gtk_icon_theme_load_icon (theme, icon, 22, 22, &error);
+  if (!pixbuf[i]) {
+    screen = gdk_screen_get_default ();
+    theme = gtk_icon_theme_get_for_screen (screen);
+    pixbuf[i] = gtk_icon_theme_load_icon (theme, icon_name[i], 22, 22, &error);
 
-  if (pixbuf == NULL) {
-    g_warning ("Failed to load icon %s: %s", icon,  error->message);
-    g_error_free (error);
+    if (pixbuf == NULL) {
+      g_warning ("Failed to load icon %s: %s", icon_name[i],  error->message);
+      g_error_free (error);
+    }
   }
 
-  return pixbuf;
+  return pixbuf[i];
 }
 
 static gboolean
@@ -206,7 +218,6 @@ get_properties_reply (GObject *source,
                       (GCallback) provider_removed_cb,
                       priv);
 
-    g_object_unref (icon);
     g_hash_table_unref (properties);
   }
 
@@ -299,7 +310,6 @@ list_children_reply (GObject *source,
                           MODEL_URL, url,
                           MODEL_ICON, icon,
                           -1);
-      g_object_unref (icon);
 
       /* Expand only first time*/
       if (data->offset == 0) {
