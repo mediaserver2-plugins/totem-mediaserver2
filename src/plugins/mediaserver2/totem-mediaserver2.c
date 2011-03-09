@@ -70,7 +70,7 @@ typedef struct {
   gchar *object_path;
   gchar *tree_path;
   guint offset;
-  GtkTreeIter *parent_iter;
+  GtkTreeRowReference *parent_ref;
   gulong cancel_handler;
 } BrowseData;
 
@@ -270,11 +270,11 @@ list_children_reply (GObject *source,
   GList *child;
   GList *children;
   GdkPixbuf *icon;
-  GtkTreeIter iter;
+  GtkTreeIter iter, parent_iter;
   MS2Client *provider = MS2_CLIENT (source);
   MS2ItemType type;
   gchar **urls;
-  GtkTreePath *path;
+  GtkTreePath *path, *parent_path = NULL;
   gchar *url;
   gint remaining = PAGESIZE;
 
@@ -291,9 +291,16 @@ list_children_reply (GObject *source,
       type = ms2_client_get_item_type (child->data);
       icon = load_icon (type);
 
+      parent_path = gtk_tree_row_reference_get_path (data->parent_ref);
+      if (!parent_path) {
+        data->canceled = TRUE;
+        goto free_data;
+      }
+
+      gtk_tree_model_get_iter (data->priv->browser_model, &parent_iter, parent_path);
       gtk_tree_store_append (GTK_TREE_STORE (data->priv->browser_model),
                              &iter,
-                             data->parent_iter);
+                             &parent_iter);
       gtk_tree_store_set (GTK_TREE_STORE (data->priv->browser_model),
                           &iter,
                           MODEL_PROVIDER, data->provider,
@@ -317,7 +324,11 @@ list_children_reply (GObject *source,
       data->offset++;
     }
 
+  free_data:
     /* Free data */
+    if (parent_path) {
+      gtk_tree_path_free (parent_path);
+    }
     g_list_foreach (children, (GFunc) g_hash_table_unref, NULL);
     g_list_free (children);
   }
@@ -329,7 +340,7 @@ list_children_reply (GObject *source,
     g_object_unref (data->provider);
     g_free (data->object_path);
     g_free (data->tree_path);
-    g_slice_free (GtkTreeIter, data->parent_iter);
+    gtk_tree_row_reference_free (data->parent_ref);
     g_slice_free (BrowseData, data);
   } else {
     /* Continue browsing */
@@ -350,7 +361,7 @@ browse_cb (GtkTreeView *tree_view,
            gpointer user_data)
 {
   BrowseData *data;
-  GtkTreeIter *iter;
+  GtkTreeIter iter;
   GtkTreeModel *model;
   MS2Client *provider;
   MS2ItemType type;
@@ -360,10 +371,9 @@ browse_cb (GtkTreeView *tree_view,
   gchar *url;
 
   model = gtk_tree_view_get_model (tree_view);
-  iter = g_slice_new (GtkTreeIter);
-  gtk_tree_model_get_iter (model, iter, path);
+  gtk_tree_model_get_iter (model, &iter, path);
 
-  gtk_tree_model_get (model, iter,
+  gtk_tree_model_get (model, &iter,
                       MODEL_PROVIDER, &provider,
                       MODEL_PATH, &object_path,
                       MODEL_TYPE, &type,
@@ -372,13 +382,13 @@ browse_cb (GtkTreeView *tree_view,
                       -1);
 
   if (type == MS2_ITEM_TYPE_CONTAINER) {
-    if (gtk_tree_model_iter_has_child (model, iter)) {
+    if (gtk_tree_model_iter_has_child (model, &iter)) {
       gtk_tree_view_expand_row (tree_view, path, FALSE);
     } else {
       data = g_slice_new (BrowseData);
       data->canceled = FALSE;
       data->offset = 0;
-      data->parent_iter = iter;
+      data->parent_ref = gtk_tree_row_reference_new (model, path);
       data->object_path = g_strdup (object_path);
       data->tree_path = gtk_tree_path_to_string (path);
       data->priv = priv;
@@ -397,7 +407,6 @@ browse_cb (GtkTreeView *tree_view,
                                       data);
     }
   } else {
-    g_slice_free (GtkTreeIter, iter);
     if (url) {
       totem_add_to_playlist_and_play (priv->totem, url, title, TRUE);
     }
