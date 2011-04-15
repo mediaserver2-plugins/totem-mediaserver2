@@ -1,65 +1,34 @@
-NORMAL_SUBDIRS = lib po data help src docs
-SUBDIRS = $(NORMAL_SUBDIRS)
+#
+# Makefile.am
+#
+# Copyright (C) 2011 Igalia S.L. All rights reserved.
 
-ACLOCAL_AMFLAGS = -I m4 ${ACLOCAL_FLAGS}
+#ACLOCAL_AMFLAGS = -I m4
 
-if ENABLE_BROWSER_PLUGINS
-SUBDIRS += browser-plugin
-endif
-
-EXTRA_DIST =			\
-	license_change		\
-	autogen.sh		\
-	intltool-extract.in	\
-	intltool-merge.in	\
-	intltool-update.in	\
-	AUTHORS NEWS		\
-	totem.spec.in		\
-	totem.spec		\
-	omf.make		\
-	xmldocs.make		\
-	gnome-doc-utils.make	\
-	ChangeLog.pre-gitlog	\
-	MAINTAINERS		\
-	totem.doap
-
-CLEANFILES = totem.spec
+SUBDIRS = src
 
 MAINTAINERCLEANFILES = \
-	$(srcdir)/INSTALL \
-	$(srcdir)/aclocal.m4 \
-	$(srcdir)/autoscan.log \
-	$(srcdir)/compile \
-	$(srcdir)/config.guess \
-	$(srcdir)/config.h.in \
-	$(srcdir)/config.sub \
-	$(srcdir)/configure.scan \
-	$(srcdir)/depcomp \
-	$(srcdir)/install-sh \
-	$(srcdir)/ltmain.sh \
-	$(srcdir)/missing \
-	$(srcdir)/mkinstalldirs \
-	$(srcdir)/omf.make \
-	$(srcdir)/py-compile \
-	$(srcdir)/xmldocs.make \
-	$(srcdir)/gtk-doc.make \
-	$(srcdir)/ChangeLog \
-	`find "$(srcdir)" -type f -name Makefile.in -print`
+        aclocal.m4 \
+        compile \
+	config.guess \
+        config.sub \
+        configure \
+	depcomp \
+	install-sh \
+	ltmain.sh \
+	missing \
+	libtool \
+	stamp-h1 \
+	Makefile.in \
+	*.make \
+	mkinstalldirs \
+	*~
 
-DISTCLEANFILES = intltool-extract intltool-merge intltool-update \
-		 gnome-doc-utils.make
+DISTCLEANFILES = $(MAINTAINERCLEANFILES)
 
-DIST_SUBDIRS = $(NORMAL_SUBDIRS) browser-plugin
-DISTCHECK_CONFIGURE_FLAGS = --disable-scrollkeeper --enable-gtk-doc --with-nautilusdir='$${libdir}/nautilus/extensions-2.0-distcheck' --enable-vala=no --enable-introspection
+#EXTRA_DIST = ./m4/introspection.m4 ./m4/silent.m4
 
-# Build ChangeLog from GIT history
-ChangeLog:
-	@if test -f $(top_srcdir)/.git/HEAD; then \
-		git log --stat --after="Mon Jul 20 23:47:57 2009" > $@; \
-	fi
+#DISTCHECK_CONFIGURE_FLAGS=--enable-gtk-doc
 
-dist: ChangeLog
-
-.PHONY: ChangeLog
-
--include $(top_srcdir)/git.mk
+distclean-local:
+	-rm -rf autom4te.cache

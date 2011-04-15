@@ -1,0 +1,8 @@
+[Plugin]
+Module=mediaserver2
+IAge=1
+Name=MediaServer2 Browser
+Description=A plugin to let you browse media content using the MediaServer2 D-BUS specification.
+Authors=Juan A. Suarez Romero <jasuarez@igalia.com>
+Copyright=Copyright © 2010 Igalia S.L.
+Website=http://www.gnome.org/projects/totem/
